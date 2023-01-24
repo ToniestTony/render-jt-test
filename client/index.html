@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Multiplayer Test</title>
+    <style>
+		*{
+			padding: 0;
+			margin: 0;
+		}
+            
+		#can{
+			position: absolute;
+			top:0;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			margin:auto;
+			border: 1px solid black;
+		}
+	
+		#can + span{
+			display: none;	
+		}
+
+		#canContainer{
+		
+		}
+    </style>
+  </head>
+  <body>
+  <div id="canContainer">
+        <canvas id="can"></canvas>
+        <span>Made with <a href="https://github.com/ToniestTony/jt_lib">jt_lib15.js</a></span>
+	</div>
+    <script src="/socket.io/socket.io.js"></script>
+	<script
+  src="https://code.jquery.com/jquery-3.6.0.min.js"
+  integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+  crossorigin="anonymous"></script>
+	<script src="jt_lib15.js"></script>
+
+    <script>
+		var socket = io();
+		var socketId=undefined;
+		
+		//Server updates
+		var name="";
+		var c="";
+		var speed=2;
+		var w=10;
+		var h=10;
+		var colors=["black","red","green","blue"]
+		var fps=1000/30;
+		
+		var clientObj={x:0,y:0,c:"",name:"",message:""};
+		var serverObjs={};
+		
+		socket.on("id",function(id){
+			socketId=id;
+			console.log(id)
+		})
+		
+		socket.on("disconnected",function(senderId){
+			delete serverObjs[senderId];
+		})
+		
+		var serverInterval=setInterval(updateData,fps);
+		
+		function updateData(){
+			socket.emit("update",clientObj);
+		}
+		
+		socket.on("getData",function(senderId,serverObj){
+			serverObjs[senderId]=serverObj;
+		})
+		
+	  
+
+		var app={
+			w:600,
+			h:400,
+			writing:false,
+			message:"",
+			//setup is called when the game has finished loading
+			setup:function(){
+				//jt.fullscreen(false);
+				x=jt.random(50,jt.w()-100);
+				y=jt.random(50,jt.h()-100);
+				c=jt.choose(colors)
+				clientObj.x=x;
+				clientObj.y=y;
+				clientObj.c=c;
+				while(!/\S/.test(name)){
+					name=window.prompt("What is your username?");
+					clientObj.name=name;
+				}
+				
+			},
+			//update is called every frame
+			update:function(){
+				jt.bg("white");
+				
+				var rects=[
+					{x:0,y:0,w:50,h:50},
+					{x:jt.w()-50,y:0,w:50,h:50},
+					{x:0,y:jt.h()-50,w:50,h:50},
+					{x:jt.w()-50,y:jt.h()-50,w:50,h:50},
+				]
+				
+				if(!this.writing){
+
+					if(jt.kCheck("left")){
+						x-=speed;
+					}
+					if(jt.kCheck("right")){
+						x+=speed;
+					}
+					if(jt.kCheck("up")){
+						y-=speed;
+					}
+					if(jt.kCheck("down")){
+						y+=speed;
+					}
+					if(jt.kPress("enter")){
+						this.writing=true;
+					}
+				}else{
+					var alphabet=',.abcdefghijklmnopqrstuvwxyz'.split('');
+					for(var i=0;i<alphabet.length;i++){
+						if(jt.kPress(alphabet[i])){
+							this.message+=alphabet[i];
+						}
+					}
+					if(jt.kPress("space")){
+						this.message+=" "
+					}
+					if(jt.kPress("backspace")){
+						if(this.message.length>0){
+							this.message=this.message.slice(0,-1);
+						}
+					}
+					
+					clientObj.message=this.message
+					
+					if(jt.kPress("enter")){
+						this.writing=false;
+					}
+				}
+				
+				for(var i=0;i<rects.length;i++){
+					var r=rects[i];
+					jt.rect(r.x,r.y,r.w,r.h,colors[i])
+					if(jt.cRect({x:x,y:y,w:w,h:h},r)){
+						c=colors[i];
+					}
+				}
+				
+				x=jt.stay(x,0,jt.w()-w)
+				y=jt.stay(y,0,jt.h()-h)
+				
+				clientObj.x=x;
+				clientObj.y=y;
+				clientObj.c=c;
+				
+				jt.fontSize(18);
+				var keys = Object.keys(serverObjs);
+
+				for (var i = 0; i < keys.length; i++) {
+					var val = serverObjs[keys[i]];
+					// use val
+					if(name!=""){
+						jt.text(val.name+" "+val.message,val.x+w/2,val.y-h*2,val.c,"center")
+						jt.rect(val.x,val.y,w,h,val.c)
+					}
+				}
+				
+				jt.text(name+" "+this.message,x+w/2,y-h*2,c,"center")
+				jt.rect(x,y,w,h,c)
+				jt.rectB(x,y,w,h,"black",2)
+				
+				if(this.writing){
+					jt.line(100,20,jt.w()-100,20,3,"black")
+					jt.text(this.message,jt.w()/2,1,"black","center");
+				}
+			}
+		}
+
+		//define the jt object on a global scale
+		var jt=undefined;
+		
+		//you can also use $(document).ready(function(){}); with jQuery
+		$(document).ready(function(){
+			//parameters of the JT object:
+			//id of the canvas
+			//width
+			//height
+			//frames per second
+			//setup function name
+			//update function name
+			//object which has the function name
+			//mobile audio button size (0 for none)
+			//fullScreen button on mobile
+			jt=new JT("can",app.w,app.h,60,'setup','update','app',0,false);
+			
+			//jt.loadImage("image.png","name")
+			//jt.loadSound("sound.wav","name")
+			//jt.loadAnim("src.png","name",number of frames,fps);
+		})
+	
+    </script>
+  </body>
+</html>
